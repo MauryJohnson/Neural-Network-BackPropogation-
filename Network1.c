@@ -48,7 +48,9 @@ void DeleteRestoredNet(RestoredNet* R);
 
 Matrix* StoreMatrix(Storage* S, long long int Row, long long int Col);
 
-void PromptUser(NN Network[], Matrix* Error, long long int Layers);
+void PromptUserSave(NN Network[], Matrix* Error, long long int Layers);
+
+int PromptGeneral(char* Ask);
 
 void DeleteNetwork(NN Network[]);
 
@@ -70,20 +72,14 @@ Matrix* Gradient(NN Network[], Matrix* Errors, long long int Layers);
 
 bool Nor = true;
 
+long double INBPAM = 1;
+
 int main(int argc, char**argv){
 //Create a NN
 long long int New = 0;
 printf("\nCreate New Network <=0 or Restore Network >0");
 scanf("%lld",&New);
 
-/*
-(Network1[0]).L = malloc(sizeof(Layer));
-Layer* L2 = (Network1[0]).L;
-L2->LayerSize = 2;
-L2->W=NULL;
-L2->H=NULL;
-printf("\nFirst Layer Size:%lld",L2->LayerSize);
-*/
 if(New<=0){
 long long int L = 0;
 printf("\n ENTER NUMBER OF LAYERS:");
@@ -102,10 +98,6 @@ CreateNetwork(Network2,L);
 Matrix* M2 = FeedIn(Network2,L);
 printf("\n FIRST FEED\n");
 printMatrixData(M2);
-
-//return 0;
-
-//PrintNetwork(Network2);
 
 FeedForward(Network2,M2);
 
@@ -138,15 +130,18 @@ while(g<Size){
 printf("\n Enter expected output[%lld]:",g+1);
 scanf("%LG",&Expected);
 ///SUBTRACT EXPECTED FROM BIAS + WEIGHT[i]
-E[g][0]=Expected-(((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->H->M)[Size][0]);
+E[g][0]=Expected-(((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->LayerType==2? 0.0:((Network2[Layer].L)->H->M)[Size][0]));
 //EXPECTED FROM BIAS+WEIGHT[i]
-printf("\n %LG -- %LG",Expected ,(((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->H->M)[Size][0]));
-if(Expected - (((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->H->M)[Size][0])!=0){
+
+printf("\n %LG -- %LG",Expected ,(((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->LayerType==2? 0.0:((Network2[Layer].L)->H->M)[Size][0])));
+
+if(Expected - (((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->LayerType==2? 0.0:((Network2[Layer].L)->H->M)[Size][0]))!=0){
 //Error Margin
 Err = true;
 }
 g++;
 }
+
 if(Err){
 //Error expected
 Matrix* Error = malloc(sizeof(Matrix));
@@ -159,7 +154,7 @@ Matrix* E2 = BackProp(Network2,Error,Layer,true);
 
 Error->Next=E2;
 
-PromptUser(Network2,Error,Layer);
+PromptUserSave(Network2,Error,Layer);
 
 DeleteMatrixes(Error);
 
@@ -168,7 +163,7 @@ DeleteMatrixes(Error);
 }
 else{
 //No Error
-PromptUser(Network2,NULL,Layer);
+PromptUserSave(Network2,NULL,Layer);
 freeMatrix(E,Size);
 }
 
@@ -179,18 +174,14 @@ DeleteNetwork(Network2);
 else{
 //Not New Network... Train?
 
-
-
 printf("\n USING SAVED NETWORK\n");
 
 RestoredNet * R = RestoreNetwork();
 
-
-
-
 DeleteRestoredNet(R);
 
 }
+
 //DeleteMatrixes(M2);
 
 //printf("\nIN first:%LG",IN[0][0]);
@@ -452,7 +443,8 @@ exit(-1);
 //Save MAtrix
 ((Network[i].L)->H)->M=(Multiply(Wn,IN));
 
-
+//Only add bias if not final layer
+if(!END){
 
 ((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(Matrix));
 if(((Network[i].L)->H)->M==NULL){
@@ -460,17 +452,20 @@ printf("\n Error Appending Bias to H...");
 exit(-1);
 }
 ((Network[i].L)->H)->M[((Network[i].L)->H)->Row]=malloc(sizeof(long double));
+
 //
 
 
 //THIS BIAS MAY BE PREDETERMINED BY LEARNING, SO SET TO APPROPRIATE BIAS, not NECESSARILY 1.0 EVERY TIME
-((Network[i].L)->H)->M[((Network[i].L)->H)->Row][0]=1.0;//(long double)rand()/(long double)RAND_MAX;
+//((Network[i].L)->H)->M[((Network[i].L)->H)->Row][0]=1.0;//(long double)rand()/(long double)RAND_MAX;
+((Network[i].L)->H)->M[((Network[i].L)->H)->Row][0]=INBPAM;
+//SET BIAS TO BPAM, OR THE FINAL VALUE OF INPUT
 //THIS BIAS MAY BE PREDETERMINED BY LEARNING, SO SET TO APPROPRIATE BIAS, not NECESSARILY 1.0 EVERY TIME
 
-
-//
+//Set appropriate row size for INPUT!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ((Network[i].L)->H)->Row = Wn->Row+1;
 
+}
 
 if(Norm>0){
 Sigmoid(((Network[i].L)->H));
@@ -497,11 +492,16 @@ Wn->Next = NULL;
 (Network[i].L)->H->Next=NULL;
 /////////////////////NEW MAP
 //IF NEW MAP
-//
 
 ((Network[i].L)->H)->M=(Multiply(Wn,(Network[i-1].L)->H));
 
+//MULTIPLY ONLY
 
+//Only add bias to every layer except final layer
+
+if(!END){
+
+//Append a bias to ACTIVATION
 ((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(Matrix));
 if(((Network[i].L)->H)->M==NULL){
 printf("\n Error Appending Bias to H...");
@@ -509,14 +509,16 @@ exit(-1);
 }
 ((Network[i].L)->H)->M[((Network[i].L)->H)->Row]=malloc(sizeof(long double));
 
-
 //THIS BIAS MAY BE PREDETERMINED BY LEARNING, SO SET TO APPROPRIATE BIAS, not NECESSARILY 1.0 EVERY TIME
+//Can Be Anything
 ((Network[i].L)->H)->M[((Network[i].L)->H)->Row][0]=1.0;
+//Set to final double from multiply
+////////////////////////////////////////////
+////////////////////////////////////////////
 ////////////////////////////////////////////
 
-
 ((Network[i].L)->H)->Row = Wn->Row+1;
-
+}
 
 if(Norm>0){
 Sigmoid(((Network[i].L)->H));
@@ -589,7 +591,7 @@ long long int i=0;
 
 long long int LSize;
 //if(Layers>2){
- LSize = (Network[0].L)->LayerSize+1;
+LSize = (Network[0].L)->LayerSize+1;
 //}
 //else{
  //LSize = (Network[0].L)->LayerSize;
@@ -611,8 +613,9 @@ if(i<LSize-1){
 printf("\nEnter Input %lld:",i);
 }
 else{
-printf("\nSETTING BIAS PARAM TO 1\n");
-IN[i][0]=1;
+//int BPAM = 2;
+printf("\nSETTING BIAS PARAM TO %d\n",INBPAM);
+IN[i][0]=INBPAM;
 break;
 }
 //}
@@ -687,166 +690,330 @@ return DeltaW;
 }
 
 Matrix* BackProp(NN Network[],Matrix* Error,long long int Layer,bool Normalized){
+
 //Layer--;
+
 //long long int u=0;
+
 /*
+
 printf("\nNormalized (>0) or Not (<=0)?");
+
 scanf("%lld",&u);
+
 if(u<=0){
+
 Normalized=true;
+
 }
+
 else{
+
 Normalized=false;
+
 }
+
 */
 
+
+
 printf("\nStarting Layer:%lld\n",Layer);
+
 printf("\nError[0]: %LG",Error->M[0][0]);
+
 printMatrixData(Error);
+
 //printf("\nError[1]: %LG",Error->M[1][0]);
+
 Matrix* M = NULL;
+
 //long long int i=0;
+
 long long int j=0;
+
 long long int k =0;
+
 long long int l=0;
+
 //long long int Nexti=0;
+
+
 
 //long long int incr = 0;
 
+
+
 long double sum = 0.0;
+
+
 
 long double Ns = 0.0;
 
+
+
 long double w = 0.0;
 
+
+
 //Add each error Matrix to this E
+
 long double **E = NULL;
 
+
+
 Matrix* EM=NULL;
+
+
 
 bool first = false;
 
 
+
+
+
 while(Layer>0){
+
+
 
 M = (Network[Layer].L)->W;
 
+
+
 //NEW ERROR MATRIX[PER LAYER]
+
 //Matrix* NewE = malloc(sizeof(Matrix));
 
+
+
 //ROWs depend on if going from small to big or big to small!!!!!!!!!!!!!!
+
 //
+
 long long int Row = 0.0;
+
 //if(first){
+
 //Row = M->Row>=M->Column? M->Column:M->Row;
+
 Row = M->Column;
+
 //}
+
 //else{
+
 //Row = M->Row;
+
 //}
+
 /*M->ColumnM->Row;*///(Network[Layer].L)->LayerSize;
 
+
+
 long long int Column = 1;
+
 long double ** NewE=malloc((Row)*sizeof(long double*));
+
 long long int r=0;
+
 while(r<Row){
+
 NewE[r]=malloc(Column*sizeof(long double));
+
 r++;
+
 }
 
+
+
 //printf("=======================");
+
 printf("=======================================");
+
+
 
 printf("\n\n New Error Matrix Size: %lld",Row);
 
+
+
 for(k=0;k<Row;k++){
+
 //Next Row
+
 for(l=0;l<M->Row;l++){
+
 //for(i=0;i<M->Column;i++){
+
 //Find portional value per node weighed
+
 w = M->M[l][k];
+
 if(!Nor){
+
 for(j=0;j<M->Column;j++){
+
 //For every node in row
+
 //J> i so not repeat
+
 //Sum up weight
+
 printf("\n %LG + %LG\n",Ns,M->M[l][j]);
+
 Ns+=M->M[l][j];
 
+
+
+//}
+
+
+
+}
+
+}
+
+//break;
+
+//}
+
+//printf("\n %LG // %LG **\n",w,sum);
+
+if(Nor){
+
+Ns=1;
+
+}
+
+printf("\nROW ITERATED TO:%lld\n",l);
+
+//if(Ns!=0.0){
+
+if(!first){
+
+if(Ns!=0)
+printf("\n %LG ++ (%LG // %LG) ** %LG\n~~~~~~~ADD NEXT RATIO~FRM FIRST~~~~~~",sum,w,Ns,Error->M[l][0]);
+else
+printf("\n %LG + 0.0\n",sum);
+
+sum+= Ns==0? 0.0:(w/Ns)*Error->M[l][0];
+
+}
+
+else{
+
+if(E==NULL){
+
+printf("\n PREV ERROR MUST BE SET!\n");
+
+exit(-1);
+
+}
+
+if(Ns!=0)
+printf("\n %LG ++ %LG // %LG **%LG\n~~~~~~~ADD NEXT RATIO~~~~~~~",sum,w,Ns,E[l][0]);
+else
+printf("\n %LG ++ 0.0\n",sum);
+
+sum+=Ns==0? 0.0:(w/Ns)*E[l][0];
+
+}
+
+//}
+
+//else{
+
+//sum+=0;
+
+//}
+
+Ns=0.0;
+
+//if(l+1==M->Column){
+
+//break;
+
 //}
 
 }
-}
-//break;
-//}
-//printf("\n %LG // %LG **\n",w,sum);
-if(Nor){
-Ns=1;
-}
-printf("\nROW ITERATED TO:%lld\n",l);
-//if(Ns!=0.0){
-if(!first){
-printf("\n %LG ++ (%LG // %LG) ** %LG\n~~~~~~~ADD NEXT RATIO~FRM FIRST~~~~~~",sum,w,Ns,Error->M[l][0]);
-sum+=(w/Ns)*Error->M[l][0];
-}
-else{
-if(E==NULL){
-printf("\n PREV ERROR MUST BE SET!\n");
-exit(-1);
-}
-printf("\n %LG ++ %LG // %LG **%LG\n~~~~~~~ADD NEXT RATIO~~~~~~~",sum,w,Ns,E[l][0]);
-sum+=(w/Ns)*E[l][0];
-}
-//}
-//else{
-//sum+=0;
-//}
-Ns=0.0;
-//if(l+1==M->Column){
-//break;
-//}
-}
+
+
 
 printf("\n\n\n------NEXT ERROR MATRIX ROW:%lld------\n\n",k);
+
 NewE[k][0]=sum;
+
+
 
 //printf("=======================");
 
+
+
 sum=0;
 
+
+
 //Nexti++;
+
 }
 
+
+
 //Append to Error Matrix
+
 AppendMatrix(NewE, Row, Column, &EM);
+
 //New Error Vector for next Layer!
+
 printf("\nError: ");
+
 printMatrixData(Error);
+
 printMatrixData(EM);
+
+
 
 E=NewE;
 
+
+
 if(!first){
+
 first=true;
+
 }
+
 printf("=======================================");
 
+
+
 //Nexti=0;
+
 if(Layer-1>0){
+
 printf("\n\n-----NEW ERROR VECTOR-----");
+
 }
 
+
+
 Layer--;
+
 }
+
+
 
 printf("\nSuccessful BackPropogation: 1st vector is Error output\nNext Vectors are error vectors for next hidden layer with biases\n");
 
+
+
 printMatrixData(EM);
 
+
+
 return EM;
+
 }
 
-void PromptUser(NN Network2[], Matrix* E, long long int Layer){
+void PromptUserSave(NN Network2[], Matrix* E, long long int Layer){
 
 long long int answer = 0;
 
@@ -858,15 +1025,18 @@ if(answer>0){
 printf("\n Enter Model #:");
 
 scanf("%lld",&answer);
+
 char* s = NULL;
+
 long long int neg = 0;
 if(answer<0){
 neg = 1;
 answer = answer*-1;
 }
+
 if(answer!=0){
 if(neg!=0){
-char str[(long long int)((ceil(log10(answer))+7)*sizeof(char))];
+char *  str = malloc((long long int)((ceil(log10(answer))+7)*sizeof(char)));
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
@@ -880,16 +1050,16 @@ printf("\n FILE:%s",str);
 s = str;
 }
 else{
-char str[(long long int)((ceil(log10(answer))+8)*sizeof(char))];
+char * str = malloc((long long int)((ceil(log10(answer))+7)*sizeof(char)));
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
 str[3] = 'e';
 str[4] = 'l';
 str[5] = '-';
-str[6] = '-';
+//str[6] = '-';
 
-sprintf((str+7), "%lld", answer);
+sprintf((str+6), "%lld", answer);
 
 printf("\n FILE:%s",str);
 s = str;
@@ -897,6 +1067,7 @@ s = str;
 }
 }
 else{
+
 //long long int answer = 0;
 /*char str[7*sizeof(char)];
 str[0] = 'M';
@@ -907,6 +1078,7 @@ str[4] = 'l';
 str[5] = '-';
 str[6] = '0';
 */
+
 char* str = "Model-0";
 
 printf("\n FILE:%s",str);
@@ -918,16 +1090,26 @@ printf("\n FILE:%s Found, OverWrite >0 or Not? <=0",s);
 scanf("%lld",&answer);
 if(answer<=0){
 printf("\n Not Saving Network");
+//Nothing else to do, perhaps ask user to try again
 return;
 }
 }
 
 FILE* F = fopen(s,"w+");
 
+if(F==NULL){
+printf("FAILED TO OPEN:%s",s);
+exit(0);
+}
+
 SaveNetwork(Network2,F,E,Layer);
 
 fclose(F);
 
+}
+else{
+printf("\nNot Saving Network");
+//Nothing else to do, perhaps ask user to try again
 }
 
 return;
@@ -968,15 +1150,15 @@ printf("\n RESTORE FILE:%s",str);
 s = str;
 }
 else{
-char str[(long long int)((ceil(log10(answer))+8)*sizeof(char))];
+char str[(long long int)((ceil(log10(answer))+7)*sizeof(char))];
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
 str[3] = 'e';
 str[4] = 'l';
 str[5] = '-';
-str[6] = '-';
-sprintf((str+7), "%lld", answer);
+//str[6] = '-';
+sprintf((str+6), "%lld", answer);
 
 printf("\n RESTORE FILE:%s",str);
 s = str;
@@ -1152,12 +1334,7 @@ DeleteStorage(St2);
 
 //
 //
-//free(W);
-
-//free(Restored->NetworkR);
-
-//free(Restored);
-
+//
 printf("\nLAYER TYPE:%ld\n",(Network[i].L)->LayerType);
 
 i++;
@@ -1209,8 +1386,6 @@ Restored->ErrorR=E;
 
 Quit=true;
 
-//DeleteNetwork(Network);
-
 fclose(F);
 
 return Restored;
@@ -1229,7 +1404,9 @@ Quit=true;
 return NULL;
 }
 
-
+/**
+ * Save Network
+ */
 void SaveNetwork(NN Network[],FILE* F, Matrix* E, long long int Layer){
 //Get Info from Net and Save it into file given
 long long int i=0;
@@ -1242,9 +1419,20 @@ printf("\n Truncate Save? >0 Yes <=0 No");
 scanf("%lld",&Truncate);
 
 Layer++;
+
+if(Layer<=0){
+printf("SAVE NET LAYER FAILURE");
+exit(0);
+}
+
+printf("\n\n\nLAYER:%lld",Layer);
+
 char Lf[(long long int)(ceil(log10(Layer))*sizeof(char))];
+
 sprintf(Lf,"%lld",Layer);
+
 fputs(Lf,F);
+
 fputs("\n",F);
 
 while(!END){
