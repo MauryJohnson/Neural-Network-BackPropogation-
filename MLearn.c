@@ -51,13 +51,13 @@ void PrintStorage(Storage*Si);
 
 void DeleteStorage(Storage*Si);
 
-//Store values for matrix A
-
+//Delete all matrices 100%
 void DeleteMatrixes(Matrix* M1);
 
-//MATRIX TO A POWER
+//MATRIX TO A POWER 100%
 long long int Power(Matrix* M1, long int power);
 
+//Multiply Matrix 1 with Matrix 2, 100%
 long double** Multiply (Matrix* M1, Matrix* M2);
 
 //Sig all Values?
@@ -65,12 +65,19 @@ long double** Sigmoid(Matrix*M1);
 
 long double** Transpose(Matrix* M);
 
+void ToTranspose(Matrix* M);
+
 //Type 1 for the identity matrix, anything else for normal matrix
 long double ** CreateMatrix(long long int rows, long int columns,int type, Matrix** M, Storage* S);
 
+//Appen Matrix 100%
 void AppendMatrix(long double** D,long long int row,long long int column, Matrix** m);
 
-long double ** CopyMatrix(long long int rows, long int columns, long double**M);
+//Copy Matrix 100%
+//long double ** CopyMatrix(long long int rows, long int columns, long double**M);
+
+Matrix * CopyMatrix(Matrix* M);
+
 
 long double** Inverse(Matrix* M1, Matrix* M2);
 
@@ -96,6 +103,14 @@ Matrix* BASE = NULL;
 
 //Storage* St=NULL;
 
+//TEST MAIN
+/*
+int main(int argc, char** argv){
+
+
+
+}
+*/
 /*
 int main(int argc ,  char** argv){
 
@@ -536,6 +551,11 @@ printf("\nNULL MATRICES\n");
 return NULL;
 }
 
+printf("\nMULTIPLY:\n");
+printMatrixData(M1);
+printf("\nWITH:\n");
+printMatrixData(M2);
+
 if(M1->Column!=M2->Row){
 printf("\nRow:%lld is not the same as Column:%lld, CANNOT MULTIPLY\n",M2->Row,M1->Column);
 return NULL;
@@ -607,7 +627,7 @@ freeMatrix(NewM);
 
 //freeMatrix(Matrix1);
 
-//AppendMatrix(NewM,M1->Row,M2->Column,&M2);
+AppendMatrix(NewM,M1->Row,M2->Column,&M1);
 //Simpler to just return the new matrix
 return NewM;
 }
@@ -916,31 +936,60 @@ AppendMatrix(M,rows,columns,M1);
 return M;
 }
 
-long double** CopyMatrix(long long int rows, long int columns, long double** Matrix){
+//Returns a copy of the matrix long double ** form
+/*long double** CopyMatrix(long long int rows, long int columns, long double** Matrix){
 
 if(rows<1||columns<1){
 return NULL;
 }
 
-long double**M=malloc(columns*sizeof(long double*));
+long double**M=malloc(rows*sizeof(long double*));
 long long int i=0;
+
 while(i<rows){
 M[i]=malloc(columns*sizeof(long double));
 i++;
 }
 long long int j=0;
 
-for(i=0;i<columns;i++){
-for(j=0;j<rows;j++){
-M[j][i]=Matrix[j][i];
+for(i=0;i<rows;i++){
+for(j=0;j<columns;j++){
+M[i][j]=Matrix[i][j];
 }
 
 }
-
-
-
 
 return M;
+}
+*/
+
+Matrix * CopyMatrix(Matrix* M){
+if(M==NULL){
+return NULL;
+}
+
+Matrix*Copy = malloc(sizeof(Matrix));
+Copy->Row=M->Row;
+Copy->Column=M->Column;
+Copy->Next=NULL;
+Copy->M=malloc(Copy->Row*sizeof(long double*));
+
+long long int i=0;
+
+while(i<Copy->Row){
+Copy->M[i]=malloc(M->Column*sizeof(long double));
+i+=1;
+}
+
+long long int j=0;
+
+for(i=0;i<Copy->Row;i+=1){
+for(j=0;j<Copy->Column;j+=1){
+Copy->M[i][j]=M->M[i][j];
+}
+}
+
+return Copy;
 }
 
 void AddToStorage(long double data, Storage** S,long long int rows, long int columns){
@@ -987,6 +1036,7 @@ void DeleteMatrixes(Matrix* M){
 if(M==NULL){
 //printf("\nFREED ALL\n");
 return;
+
 }
 Matrix* M2=(M)->Next;
 
@@ -1000,44 +1050,91 @@ free(((M)->M)[i]);
 //}
 }
 
+if(M->M!=NULL)
 free(((M)->M));
 (M)->M=NULL;
 
+
 free((M));
 (M)=NULL;
+
 DeleteMatrixes(M2);
+
 return;
+}
+
+void ToTranspose(Matrix* M){
+if(M==NULL){
+return ;
+}
+
+long double** M1 = malloc((M->Column)*sizeof(long double*));
+long long int i=0;
+
+while(i<M->Column){
+//long double* M11 = M1[i];
+M1[i]=malloc((M->Row)*sizeof(long double));
+i++;
+}
+//
+long long int j=0;
+for(i=0;i<M->Row;i++){
+for(j=0;j<M->Column;j++){
+
+////Reverse
+M1[j][i]=(M->M)[i][j];
+
+}
+}
+
+freeMatrix(M->M,M->Row);
+
+int R = M->Row;
+M->Row=M->Column;
+M->Column=R;
+
+M->M=M1;
+
 }
 
 long double** Transpose(Matrix* M){
 if(M==NULL){
 return NULL;
 }
-long double** M1 = malloc((M->Row)*sizeof(long double*));
+long double** M1 = malloc((M->Column)*sizeof(long double*));
 long long int i=0;
-while(i<M->Row){
-M1[i]=malloc((M->Column)*sizeof(long double));
+
+while(i<M->Column){
+//long double* M11 = M1[i];
+M1[i]=malloc((M->Row)*sizeof(long double));
 i++;
 }
 
 long long int j=0;
-for(i=0;i<M->Column;i++){
-for(j=0;j<M->Row;j++){
+for(i=0;i<M->Row;i++){
+for(j=0;j<M->Column;j++){
+
+//Reverse
 M1[j][i]=(M->M)[i][j];
+
 }
 }
 
-AppendMatrix(M1,i,j,&M);
+//APPEND MATRIX by Column, Row now
+AppendMatrix(M1,M->Column,M->Row,&M);
 
 return M->M;
 
 }
 
 void AppendMatrix(long double** D, long long int row,long long int column, Matrix** M){
+
 if(M==NULL){
-printf("\nNULL POINTER\n");
+printf("\nNULL POINTER, MALLOC IT\n");
+//M = malloc(sizeof(Matrix*));
 return;
 }
+
 if(*M==NULL){
 (*M)=malloc(sizeof(Matrix));
 (*M)->Row=row;
@@ -1046,11 +1143,20 @@ if(*M==NULL){
 (*M)->M=D;
 return;
 }
+
 AppendMatrix(D,row,column,&((*M)->Next));
 return;
 }
 
+/**
+ * One Activation Function!
+ *
+ */
 long double** Sigmoid(Matrix*M1){
+if(M1==NULL){
+printf("\nNO MATRIX GIVEN FOR RELU");
+return NULL;
+}
 long long int i=0;
 long double val = 0;
 for(i=0;i<M1->Row;i++){
@@ -1060,3 +1166,61 @@ M1->M[i][0] = 1/(1+expl(-val));
 }
 return M1->M;
 }
+
+/**
+ * Derivative of Activated Sigmoids
+ */
+long double DSig(long double D){
+return D*(1-D);
+}
+
+/**
+ *Relu Activation Function
+ */
+long double** Relu(Matrix*M1){
+if(M1==NULL){
+printf("NO MATRIX GIVEN FOR RELU");
+return NULL;
+}
+long long int i=0;
+
+for(i=0;i<M1->Row;i++){
+if(M1->M[i][0]<=0){
+M1->M[i][0]=0.0;
+}	
+}
+
+return M1->M;
+}
+
+//Derivative of Activated Relu
+long double DRelu(long double D){
+return D>0? 1:0;
+}
+
+/**
+ * SoftMax Activation Function
+ * e^aj/sum1,...,N(e^ak) for all 1....N
+ */
+long double** SoftMax(Matrix*M){
+long long int i=0;
+long long int k=0;
+long double sum=0.0;
+
+for(i=0;i<M->Row;i++){
+k=0;
+sum =0.0;
+for(k=0;k<M->Row;k++){
+if(i!=k){
+//Sum over all values !=i for k
+sum+=expl(M->M[k][0]);
+}
+}
+//Perform operation on row
+M->M[i][0] = expl(M->M[i][0])/sum;
+}
+
+return M->M;
+}
+
+

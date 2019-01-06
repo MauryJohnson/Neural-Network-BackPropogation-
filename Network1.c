@@ -12,6 +12,15 @@ Matrix* W;
 Matrix* H;
 //Activation, typically size ix1, 1 column, i rows
 long int LayerType;
+
+//What Type of Activation to use
+//0 NONE
+//1 SIGMOID + NORMALIZED (DIVIDE)
+//2 RELU + NORMALIZED (DIVIDE)
+//3 SOFTMAX + NORMALIZED (DIVIDE)
+//4 ... MORE SOON
+int ActivationFunction;
+
 }Layer;
 
 typedef struct NN_{//Create Array of Layers (static) to access each layer quickly
@@ -25,14 +34,19 @@ Layer* L;
 
 typedef struct RestoredNet_{
 
+//Number of Layers for Net
 long long int NetLen;
 
+//Error, starting from Output
 Matrix* ErrorR;
 
+//Network -> Weights, Activation, Bias
 NN * NetworkR;
 
 }RestoredNet;
 
+
+void clean_stdin(void);
 
 NN* CreateNetwork(NN Network[],long long int Layers);
 
@@ -44,7 +58,9 @@ void SaveNetwork(NN Network[],FILE* F, Matrix* Error, long long int Layers);
 
 RestoredNet* RestoreNetwork();
 
-void DeleteRestoredNet(RestoredNet* R);
+RestoredNet* RN = NULL;
+
+void DeleteRestoredNet();
 
 Matrix* StoreMatrix(Storage* S, long long int Row, long long int Col);
 
@@ -74,25 +90,57 @@ bool Nor = true;
 
 long double INBPAM = 1;
 
+NN * Network2;
+
 int main(int argc, char**argv){
+
+long long int L = 0;
+
+long long int New=0;
+
+//while(1){
+
+//NN * Network2;
+
+//if(RN==NULL){
 //Create a NN
-long long int New = 0;
+if(RN==NULL){
+
 printf("\nCreate New Network <=0 or Restore Network >0");
 scanf("%lld",&New);
+clean_stdin();
 
+}
+else{
+New=0;
+}
 if(New<=0){
-long long int L = 0;
+
+if(RN==NULL){
 printf("\n ENTER NUMBER OF LAYERS:");
 scanf("%lld",&L);
+clean_stdin();
+
 if(L<2){
 //In and out layer required!!
 printf("\n Impossible layer #\n");
 exit(-1);
 }
 
-NN Network2[L];
+NN Network[L];
+Network2 = Network;
 CreateNetwork(Network2,L);
 
+}
+else{
+printf("\nUSING RESTORED NETWORK\n");
+Network2 = RN->NetworkR;
+L=RN->NetLen;
+printf("\n SIZE:%lld",L);
+//int Wait;
+//scanf("%d",&Wait);
+//clean_stdin();
+}
 //printf("\n Sigmoid 1:%LG",1/(1+expl(-1)));
 
 Matrix* M2 = FeedIn(Network2,L);
@@ -129,6 +177,7 @@ bool Err = false;
 while(g<Size){
 printf("\n Enter expected output[%lld]:",g+1);
 scanf("%LG",&Expected);
+clean_stdin();
 ///SUBTRACT EXPECTED FROM BIAS + WEIGHT[i]
 E[g][0]=Expected-(((Network2[Layer].L)->H->M)[g][0]+((Network2[Layer].L)->LayerType==2? 0.0:((Network2[Layer].L)->H->M)[Size][0]));
 //EXPECTED FROM BIAS+WEIGHT[i]
@@ -156,36 +205,74 @@ Error->Next=E2;
 
 PromptUserSave(Network2,Error,Layer);
 
-DeleteMatrixes(Error);
+Matrix* GradientWeights = Gradient(Network2,E2,Layer);
 
-//DeleteMatrixes(E2);
+//DeleteMatrixes(GradientWeights);
+
+DeleteMatrixes(Error);
 
 }
 else{
+
 //No Error
 PromptUserSave(Network2,NULL,Layer);
+
 freeMatrix(E,Size);
+
+DeleteNetwork(Network2);
+
 }
 
+PrintNetwork(Network2);
 
-//PrintNetwork(Network2);
+if(RN!=NULL){
+DeleteRestoredNet();
+}
+
 DeleteNetwork(Network2);
+
 }
 else{
 //Not New Network... Train?
 
 printf("\n USING SAVED NETWORK\n");
 
-RestoredNet * R = RestoreNetwork();
+RN = RestoreNetwork();
 
-DeleteRestoredNet(R);
+//Network2 = RN->NetworkR;
+//L=RN->NetLen;
+
+//DeleteRestoredNet();
 
 }
 
-//DeleteMatrixes(M2);
 
-//printf("\nIN first:%LG",IN[0][0]);
 
+//}
+/*
+if(PromptGeneral("Do You want to Quit?")>0){
+break;
+}
+
+}
+*/
+//DeleteRestoredNet();
+
+int Quit = 0;
+printf("\nExit? <=0 No >0 Yes");
+scanf("%d",&Quit);
+clean_stdin();
+if(Quit<=0){
+//char** Args = {"A","B"};
+
+//char args[1][2] = {'a','a'};
+
+//char[1][2] args = {"ABS","DEF"};
+
+main(argc,argv);
+}
+
+//Finished with backpropogation/learning/training!
 return 0;
 }
 
@@ -199,6 +286,7 @@ NN* CreateNetwork(NN Network[],long long int Layers){
 long long int i=0;
 //long int j=0;
 
+int Activation;
 long long int Size;
 
 printf("\nEach layer can be any size > 0! , connectivity only increases\n");
@@ -216,16 +304,28 @@ printf("\n Enter Hidden Layer Size:");
 }
 
 scanf("%lld",&Size);
+clean_stdin();
 
 if(Size<=0){
 printf("\n Impossible Layer Size:%lld",Size);
 exit(-1);
 }
 
+if(i>0){
+printf("\nEnter Activation Function [0=None,1=Sigmoid,2=Relu,3=SoftMax] ");
+scanf("%d",&Activation);
+clean_stdin();
+
+if(Activation<0||Activation>2){
+Activation=0;
+}
+}
+
 (Network[i]).L = malloc(sizeof(Layer));
 Layer* L2 = (Network[i]).L;
-
 L2->LayerSize = Size;
+if(i>0)
+L2->ActivationFunction=Activation;
 
 if(i>0){
 //Create Weight Matrix for Layer i to Layer i+1
@@ -401,9 +501,9 @@ Matrix* FeedForward(NN Network[],Matrix* IN){
 //ith position is H layer
 //jth position is IN layer
 
-long long int Norm = 0;
-printf("\n Normalized Feed >0 or regular? <=0:");
-scanf("%lld",&Norm);
+//long long int Norm = 0;
+//printf("\n Normalized + Activation Function Feed >0 or regular? <=0:\n");
+//scanf("%lld",&Norm);
 
 if(IN==NULL){
 printf("\n NULL FEED!! \n");
@@ -446,7 +546,7 @@ exit(-1);
 //Only add bias if not final layer
 if(!END){
 
-((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(Matrix));
+((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(long double*));
 if(((Network[i].L)->H)->M==NULL){
 printf("\n Error Appending Bias to H...");
 exit(-1);
@@ -467,13 +567,27 @@ exit(-1);
 
 }
 
-if(Norm>0){
-Sigmoid(((Network[i].L)->H));
+//if(Norm>0){
+printf("\nUsing Activation Function:");
+switch((Network[i].L)->ActivationFunction){
+	case 1: printf("Sigmoid\n");
+		Sigmoid(((Network[i].L)->H));
+		break;
+	case 2: printf("Relu\n");
+		Relu(((Network[i].L)->H));
+		break;
+	case 3: printf("SoftMax\n");
+		SoftMax(((Network[i].L)->H));
+		break;
+	default:
+		printf("NONE\n");
+		Nor=false;
+		break;
 }
-else{
-Nor=false;
-}
-
+//}
+//else{
+//Nor=false;
+//}
 }
 else if(i>1){
 
@@ -502,7 +616,7 @@ Wn->Next = NULL;
 if(!END){
 
 //Append a bias to ACTIVATION
-((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(Matrix));
+((Network[i].L)->H)->M=realloc(((Network[i].L)->H)->M,((((Network[i].L)->H)->Row)+1)*sizeof(long double*));
 if(((Network[i].L)->H)->M==NULL){
 printf("\n Error Appending Bias to H...");
 exit(-1);
@@ -520,12 +634,27 @@ exit(-1);
 ((Network[i].L)->H)->Row = Wn->Row+1;
 }
 
-if(Norm>0){
-Sigmoid(((Network[i].L)->H));
+//if(Norm>0){
+printf("\nUsing Activation Function:");
+switch((Network[i].L)->ActivationFunction){
+        case 1: printf("Sigmoid\n");
+		Sigmoid(((Network[i].L)->H));
+		break;
+        case 2: printf("Relu\n");
+		Relu(((Network[i].L)->H));
+		break;
+        case 3: printf("SoftMax\n");
+		SoftMax(((Network[i].L)->H));
+		break;
+        default:
+		printf("NONE\n");
+                Nor=false;
+		break;
 }
-else{
-Nor=false;
-}
+//}
+//else{
+//Nor=false;
+//}
 
 //
 }
@@ -533,12 +662,6 @@ Nor=false;
 i++;
 }
 
-//
-//Final Feed for OUTPUT HERE
-//Matrix* OUT = ((Network[i-1].L)->H);
-//printf("\nOUT:");
-//printMatrixData(OUT);
-//
 return NULL;
 }
 
@@ -614,7 +737,7 @@ printf("\nEnter Input %lld:",i);
 }
 else{
 //int BPAM = 2;
-printf("\nSETTING BIAS PARAM TO %d\n",INBPAM);
+printf("\nSETTING BIAS PARAM TO %LG\n",INBPAM);
 IN[i][0]=INBPAM;
 break;
 }
@@ -623,6 +746,8 @@ break;
 //printf("\nEnter Input %lld:",i);
 //}
 scanf("%LG",&input);
+clean_stdin();
+
 IN[i][0]=input;
 i++;
 }
@@ -655,37 +780,94 @@ return NULL;
 }
 
 long double Lr = 0.0;
+
+while(1){
 printf("\nEnter Learning Rate(Recommended to be small if given lots of data, large if not:");
 scanf("%LG",&Lr);
+clean_stdin();
 
 if(Lr<=0.0){
 printf("\nLearning Rate must be >0!");
-return NULL;
 }
+else{
+break;
+}
+}
+
 Matrix* En = Errors;
+
 //Weight Matrix for All Weights to be Changed
-Matrix* DeltaW = NULL;
+Matrix* DeltaW = malloc(sizeof(Matrix));
+long long int Size = 0;
+//DeltaW=malloc((Layers-1)*sizeof(Matrix));
 //
 //long long int Rows = 0;
 //long long int Columns = 0;
 //FIRST ERROR VECTOR IS ERROR OUTPUT TO HIDDEN N-1
 //AppendMatrix(long double ** M, row, column, Matrix** Mat)
 long long int i=0;
+long long int j=0;
+long double val = 0.0;
 for(i=0,En=Errors;i<Layers&&En!=NULL;i++,En=En->Next){
 //for(En=Errors;En!=NULL;En=En->Next){
 
 //ITERATE THROUGH ERROR VECTOR n
-//for(Rows = 0; Rows<En->Row; Rows++){
-//for(Columns = 0; Columns<En->Column; Columns++){
-//}
-//}
+//Sum together learning rate, error row, derivative of sigmoid
+for(j=0; j<(En->Row); j++){
+printf("\n ROW:%lld",j);
+switch(((Network[Layers-i]).L)->ActivationFunction){
+	case 1:
+		val = DSig(En->M[j][0]);
+		break;
+	case 2:	
+		val = DRelu(En->M[j][0]);
+		break;
+	//case 3:
+	//	val = DSoftMax(En->M[j][0]);	
+	//	break;
+	default:
+		val = 1.0;
+		break;
+}
+
+printf("\nLr:%LG ** E:%LG ** D:%LG\n",Lr,En->M[j][0],val);
+En->M[j][0]=Lr*En->M[j][0]*val;
+
+}
+
+Matrix* AT=(CopyMatrix(((Network[Layers-i]).L)->H));
+ToTranspose(AT);
+printf("\nActivation Transpose Matrix:\n");
+printMatrixData(AT);
+//APPEND 1 to activation to get back the BIAS!!
+
+if(Size>0){
+AppendMatrix(Multiply(En,AT),En->Row,AT->Column,&DeltaW);
+}
+else{
+DeltaW->Row=En->Row;
+DeltaW->Column=AT->Column;
+DeltaW->M=Multiply(En,AT);
+DeltaW->Next=NULL;
+Size+=1;
+}
+
+ToTranspose(DeltaW);
+
+//printf("\nResult Weight Matrix:\n");
+
+//printMatrixData(DeltaW);
 
 //AFTER ITERATE THROUGH ERROR VECTOR
 
-
 //}
-
 }
+
+printf("\nResult Gradient Descent Weight Matrix FOR ALL ACTIVATIONS!:\n");
+
+printMatrixData(DeltaW);
+
+//exit(0);
 return DeltaW;
 }
 
@@ -907,7 +1089,6 @@ printf("\n PREV ERROR MUST BE SET!\n");
 exit(-1);
 
 }
-
 if(Ns!=0)
 printf("\n %LG ++ %LG // %LG **%LG\n~~~~~~~ADD NEXT RATIO~~~~~~~",sum,w,Ns,E[l][0]);
 else
@@ -926,6 +1107,7 @@ sum+=Ns==0? 0.0:(w/Ns)*E[l][0];
 //}
 
 Ns=0.0;
+
 
 //if(l+1==M->Column){
 
@@ -955,25 +1137,19 @@ sum=0;
 
 }
 
-
-
 //Append to Error Matrix
 
 AppendMatrix(NewE, Row, Column, &EM);
 
 //New Error Vector for next Layer!
 
-printf("\nError: ");
+printf("\n OUTPUT Error: ");
 
 printMatrixData(Error);
 
 printMatrixData(EM);
 
-
-
 E=NewE;
-
-
 
 if(!first){
 
@@ -1020,11 +1196,13 @@ long long int answer = 0;
 printf("\n Save Network and Error? >0 for yes, <=0 for no");
 
 scanf("%lld",&answer);
+clean_stdin();
 
 if(answer>0){
 printf("\n Enter Model #:");
 
 scanf("%lld",&answer);
+clean_stdin();
 
 char* s = NULL;
 
@@ -1088,6 +1266,8 @@ s = str;
 if(access(s,F_OK)!=-1){
 printf("\n FILE:%s Found, OverWrite >0 or Not? <=0",s);
 scanf("%lld",&answer);
+clean_stdin();
+
 if(answer<=0){
 printf("\n Not Saving Network");
 //Nothing else to do, perhaps ask user to try again
@@ -1124,6 +1304,7 @@ do{
 printf("\n Enter Model #:");
 
 scanf("%lld",&answer);
+clean_stdin();
 
 long long int neg = 0;
 
@@ -1136,7 +1317,7 @@ char* s=NULL;
 
 if(answer!=0){
 if(neg!=1){
-char str[(long long int)((ceil(log10(answer))+7)*sizeof(char))];
+char * str = malloc((long long int)((ceil(log10(answer))+7)*sizeof(char)));
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
@@ -1150,7 +1331,7 @@ printf("\n RESTORE FILE:%s",str);
 s = str;
 }
 else{
-char str[(long long int)((ceil(log10(answer))+7)*sizeof(char))];
+char * str = malloc((long long int)((ceil(log10(answer))+7)*sizeof(char)));
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
@@ -1162,11 +1343,10 @@ sprintf((str+6), "%lld", answer);
 
 printf("\n RESTORE FILE:%s",str);
 s = str;
-
 }
 }
 else{
-char str[8*sizeof(char)];
+char * str = malloc(8*sizeof(char));
 str[0] = 'M';
 str[1] = 'o';
 str[2] = 'd';
@@ -1394,6 +1574,8 @@ return Restored;
 else{
 printf("\nFile Not Found, Quit <=0 or Continue? >0");
 scanf("%lld",&answer);
+clean_stdin();
+
 if(answer<=0){
 Quit=true;
 }
@@ -1403,6 +1585,19 @@ Quit=true;
 
 return NULL;
 }
+
+/*
+ * Given prompt, state it, then return input
+ */
+int PromptGeneral(char* Prompt){
+printf("\n %s \n",Prompt);
+int Input;
+scanf("%d",&Input);
+clean_stdin();
+
+return Input;
+}
+
 
 /**
  * Save Network
@@ -1417,6 +1612,7 @@ long long int Truncate = 0;
 
 printf("\n Truncate Save? >0 Yes <=0 No");
 scanf("%lld",&Truncate);
+clean_stdin();
 
 Layer++;
 
@@ -1577,7 +1773,8 @@ S1=S2;
 return M;
 }
 
-void DeleteRestoredNet(RestoredNet* R){
+void DeleteRestoredNet(){
+RestoredNet* R = RN;
 if(R==NULL){
 return;
 }
@@ -1588,4 +1785,9 @@ DeleteMatrixes(R->ErrorR);
 free(R);
 R=NULL;
 return;
+}
+
+void clean_stdin(void){
+int c;
+    while((c = getchar()) != '\n' && c != EOF);
 }
